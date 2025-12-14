@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boat Monitoring Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.34/moment-timezone-with-data.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: #1a1a1a;
+      color: #ffffff;
+      overflow-x: hidden;
+    }
+
+    .dashboard {
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #333;
+    }
+
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .status-indicators {
+      display: flex;
+      gap: 20px;
+    }
+
+    .indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: #888;
+      transition: color 0.3s ease;
+    }
+
+    .indicator.connected, .indicator.active {
+      color: #4ade80;
+    }
+
+    .indicator.disconnected, .indicator.error {
+      color: #ef4444;
+    }
+
+    .indicator.waiting {
+      color: #f59e0b;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #888;
+      transition: background-color 0.3s ease;
+    }
+
+    .indicator.connected .dot, .indicator.active .dot {
+      background-color: #4ade80;
+      animation: pulse 2s infinite;
+    }
+
+    .indicator.disconnected .dot, .indicator.error .dot {
+      background-color: #ef4444;
+    }
+
+    .indicator.waiting .dot {
+      background-color: #f59e0b;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .metric-card {
+      background-color: #2a2a2a;
+      border-radius: 12px;
+      padding: 30px;
+      border: 1px solid #333;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      text-align: center;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .metric-card h3 {
+      font-size: 1rem;
+      color: #888;
+      margin-bottom: 15px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .metric-value {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #ffffff;
+      margin-bottom: 10px;
+    }
+
+    .metric-trend {
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .metric-trend.up {
+      color: #22c55e;
+    }
+
+    .metric-trend.down {
+      color: #ef4444;
+    }
+
+    .metric-trend.stable {
+      color: #888;
+    }
+
+    .map-section {
+      display: flex;
+      flex-direction: row;
+      gap: 20px;
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .map-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toggle-button-container {
+      text-align: center;
+      padding: 5px 0;
+    }
+
+    .toggle-button-container button {
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .toggle-button-container button:hover {
+      background-color: #0056b3;
+    }
+
+    .map-container {
+      height: 75vh;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+
+    .colorbar-container {
+      text-align: center;
+      padding: 10px 0;
+    }
+
+    #colorbar-canvas {
+      vertical-align: middle;
+      display: inline-block;
+    }
+
+    #min-speed, #max-speed {
+      margin: 0 10px;
+    }
+
+    .buoy-form {
+      background-color: #2a2a2a;
+      padding: 20px;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      width: 300px;
+    }
+
+    .buoy-form h2 {
+      margin: 0 0 10px 0;
+      text-align: center;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .form-group label {
+      margin-bottom: 2px;
+    }
+
+    .form-group input[type="number"] {
+      width: 100%;
+      padding: 5px;
+      background-color: #3a3a3a;
+      border: none;
+      color: #ffffff;
+      border-radius: 5px;
+      box-sizing: border-box;
+    }
+
+    .form-group button {
+      padding: 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .form-group button:hover {
+      background-color: #0056b3;
+    }
+
+    .form-group .remove-btn {
+      background-color: #dc3545;
+    }
+
+    .form-group .remove-btn:hover {
+      background-color: #c82333;
+    }
+
+    .lat-long-display {
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #3a3a3a;
+      border-radius: 5px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .black-screen {
+      background-color: #000000 !important;
+    }
+
+    @media (max-width: 768px) {
+      .dashboard {
+        padding: 15px;
+        gap: 20px;
+      }
+
+      .map-section {
+        flex-direction: column;
+      }
+
+      .map-content {
+        width: 100%;
+      }
+
+      .buoy-form {
+        width: 100%;
+        max-width: 100%;
+        margin: 0 auto;
+      }
+
+      .map-container {
+        height: 50vh;
+      }
+
+      .metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+      }
+
+      .metric-card {
+        padding: 20px;
+      }
+
+      .metric-value {
+        font-size: 2rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .header h1 {
+        font-size: 1.5rem;
+      }
+
+      .metric-value {
+        font-size: 1.8rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="header">
+      <h1>Team Sea Sakthi Dashboard <img src="https://flagcdn.com/in.svg" alt="Indian Flag" style="height: 1em; vertical-align: middle;"></h1>
+      <div class="status-indicators">
+        <div class="indicator" id="connectionStatus" role="status" aria-live="polite">
+          <span class="dot"></span>
+          <span id="connectionStatusText">Connecting...</span>
+        </div>
+        <div class="indicator" id="dataStatus" role="status" aria-live="polite">
+          <span class="dot"></span>
+          <span id="statusText">Loading...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric-card" role="region" aria-label="Speed metric">
+        <h3>Speed</h3>
+        <div class="metric-value" id="speedValue">-- knots</div>
+        <div class="metric-trend" id="speedTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="SOC metric">
+        <h3>SOC</h3>
+        <div class="metric-value" id="socValue">--%</div>
+        <div class="metric-trend" id="socTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Current metric">
+        <h3>Current</h3>
+        <div class="metric-value" id="currentValue">-- A</div>
+        <div class="metric-trend" id="currentTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Voltage metric">
+        <h3>Voltage</h3>
+        <div class="metric-value" id="voltageValue">-- V</div>
+        <div class="metric-trend" id="voltageTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Temperature metric">
+        <h3>Temperature</h3>
+        <div class="metric-value" id="tempValue">--°C</div>
+        <div class="metric-trend" id="tempTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="PDU Temperature metric">
+        <h3>PDU Temperature</h3>
+        <div class="metric-value" id="pduTempValue">--°C</div>
+        <div class="metric-trend" id="pduTempTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Power metric">
+        <h3>Power</h3>
+        <div class="metric-value" id="powerValue">-- W</div>
+        <div class="metric-trend" id="powerTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Latitude metric">
+        <h3>Latitude</h3>
+        <div class="metric-value" id="latValue">--°</div>
+        <div class="metric-trend" id="latTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Longitude metric">
+        <h3>Longitude</h3>
+        <div class="metric-value" id="longValue">--°</div>
+        <div class="metric-trend" id="longTrend">--</div>
+      </div>
+    </div>
+
+    <div class="map-section">
+      <div class="map-content">
+        <div class="toggle-button-container">
+          <button id="toggle-view-btn" onclick="toggleView()">Switch to Black Screen View</button>
+        </div>
+        <div class="map-container">
+          <div id="map"></div>
+        </div>
+        <div class="colorbar-container">
+          <span id="min-speed"></span>
+          <canvas id="colorbar-canvas" width="200" height="20"></canvas>
+          <span id="max-speed"></span>
+        </div>
+      </div>
+      <div class="buoy-form">
+        <h2>Buoy Positions</h2>
+        <div class="form-group">
+          <label>Buoy 1 Lat:</label>
+          <input type="number" id="buoy1_lat" step="any" required placeholder="e.g., 40.7128">
+          <label>Buoy 1 Lon:</label>
+          <input type="number" id="buoy1_lon" step="any" required placeholder="e.g., -74.0060">
+        </div>
+        <div class="form-group">
+          <label>Buoy 2 Lat:</label>
+          <input type="number" id="buoy2_lat" step="any" required placeholder="e.g., 40.7200">
+          <label>Buoy 2 Lon:</label>
+          <input type="number" id="buoy2_lon" step="any" required placeholder="e.g., -74.0100">
+        </div>
+        <div class="form-group">
+          <label>Buoy 3 Lat:</label>
+          <input type="number" id="buoy3_lat" step="any" required placeholder="e.g., 40.7300">
+          <label>Buoy 3 Lon:</label>
+          <input type="number" id="buoy3_lon" step="any" required placeholder="e.g., -74.0200">
+        </div>
+        <div class="form-group">
+          <button onclick="submitBuoys()">Submit Buoys</button>
+          <button class="remove-btn" onclick="removeBuoys()">Remove Buoys</button>
+        </div>
+        <div class="lat-long-display" id="lat-long-display">
+          Latitude: N/A, Longitude: N/A
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global variables
+    let sensorData = [];
+    let previousData = null;
+    let lastDataTime = null;
+    let isConnected = false;
+    let sseSource = null;
+    let sseRetryCount = 0;
+    const MAX_SSE_RETRIES = 10;
+    let map, tileLayer, buoyIcon, polylines = [], buoyMarkers = [], boatData = [], buoyData = [];
+    let currentIndex = 0;
+    let isMapView = true;
+    let isTracing = false;
+    let hasInitialZoom = false;
+
+    // Initialize the map
+    function initMap() {
+      map = L.map('map').setView([40.7128, -74.0060], 10);
+      tileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        maxZoom: 18
+      }).addTo(map);
+
+      buoyIcon = L.divIcon({
+        className: 'buoy-marker',
+        html: '<div style="background-color: #ff0000; width: 15px; height: 15px; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 10px rgba(255,0,0,0.8);"></div>',
+        iconSize: [15, 15],
+        iconAnchor: [7.5, 7.5]
+      });
+
+      map.on('mousemove', function(e) {
+        const lat = e.latlng.lat.toFixed(4);
+        const lng = e.latlng.lng.toFixed(4);
+        document.getElementById('lat-long-display').textContent = `Latitude: ${lat}, Longitude: ${lng}`;
+      });
+
+      map.on('mouseout', function() {
+        document.getElementById('lat-long-display').textContent = `Latitude: N/A, Longitude: N/A`;
+      });
+    }
+
+    // Update connection status
+    function updateConnectionStatus(status, message) {
+      const indicator = document.getElementById('connectionStatus');
+      const statusText = document.getElementById('connectionStatusText');
+      indicator.className = `indicator ${status}`;
+      statusText.textContent = message;
+    }
+
+    // Update data status
+    function updateDataStatus(status, message) {
+      const indicator = document.getElementById('dataStatus');
+      const statusText = document.getElementById('statusText');
+      indicator.className = `indicator ${status}`;
+      statusText.textContent = message;
+    }
+
+    // Update metric cards
+    function updateMetricCards(data, isHover = false) {
+      if (!data) return;
+
+      document.getElementById('speedValue').textContent = (parseFloat(data.speed) || 0).toFixed(1) + ' knots';
+      document.getElementById('socValue').textContent = (parseFloat(data.soc) || 0).toFixed(1) + '%';
+      document.getElementById('currentValue').textContent = (parseFloat(data.current) || 0).toFixed(1) + ' A';
+      document.getElementById('voltageValue').textContent = (parseFloat(data.voltage) || 0).toFixed(1) + ' V';
+      document.getElementById('tempValue').textContent = (parseFloat(data.temperature) || 0).toFixed(1) + '°C';
+      document.getElementById('pduTempValue').textContent = (parseFloat(data.pdutemp) || 0).toFixed(1) + '°C';
+      document.getElementById('powerValue').textContent = (parseFloat(data.power) || 0).toFixed(2) + ' W';
+      document.getElementById('latValue').textContent = (parseFloat(data.lat) || 0).toFixed(6) + '°';
+      document.getElementById('longValue').textContent = (parseFloat(data.long) || 0).toFixed(6) + '°';
+
+      if (!isHover && previousData) {
+        updateTrend('speedTrend', data.speed, previousData.speed);
+        updateTrend('socTrend', data.soc, previousData.soc);
+        updateTrend('currentTrend', data.current, previousData.current);
+        updateTrend('voltageTrend', data.voltage, previousData.voltage);
+        updateTrend('tempTrend', data.temperature, previousData.temperature);
+        updateTrend('pduTempTrend', data.pdutemp, previousData.pdutemp);
+        updateTrend('powerTrend', data.power, previousData.power);
+        updateTrend('latTrend', data.lat, previousData.lat);
+        updateTrend('longTrend', data.long, previousData.long);
+      } else if (isHover) {
+        ['speedTrend', 'socTrend', 'currentTrend', 'voltageTrend', 'tempTrend', 
+         'pduTempTrend', 'powerTrend', 'latTrend', 'longTrend'].forEach(id => {
+          const element = document.getElementById(id);
+          element.textContent = 'Hover';
+          element.className = 'metric-trend stable';
+        });
+      }
+
+      if (!isHover) {
+        previousData = data;
+        plotBoatPoint(data);
+      }
+    }
+
+    // Update trend
+    function updateTrend(elementId, currentValue, previousValue) {
+      const element = document.getElementById(elementId);
+      if (previousValue !== undefined) {
+        const current = parseFloat(currentValue) || 0;
+        const previous = parseFloat(previousValue) || 0;
+        const delta = current - previous;
+        if (Math.abs(delta) < 0.1) {
+          element.textContent = 'Stable';
+          element.className = 'metric-trend stable';
+        } else if (delta > 0) {
+          element.textContent = `↑ +${delta.toFixed(1)}`;
+          element.className = 'metric-trend up';
+        } else {
+          element.textContent = `↓ ${delta.toFixed(1)}`;
+          element.className = 'metric-trend down';
+        }
+      } else {
+        element.textContent = '--';
+        element.className = 'metric-trend stable';
+      }
+    }
+
+    // Interpolate colors for speed (Sunset theme)
+    function getColor(speed, minSpeed, maxSpeed) {
+      if (maxSpeed === minSpeed) return 'rgb(72, 61, 139)';
+      const ratio = (speed - minSpeed) / (maxSpeed - minSpeed);
+      const colors = [
+        { ratio: 0.0, r: 220, g: 20, b: 60 },   // Red
+        { ratio: 0.5, r: 255, g: 140, b: 0 },   // Orange  
+        { ratio: 1.0, r: 34, g: 139, b: 34 }    // Green
+      ];
+      let lowerColor, upperColor;
+      for (let i = 0; i < colors.length - 1; i++) {
+        if (ratio >= colors[i].ratio && ratio <= colors[i + 1].ratio) {
+          lowerColor = colors[i];
+          upperColor = colors[i + 1];
+          break;
+        }
+      }
+      if (!lowerColor || !upperColor) {
+        if (ratio <= colors[0].ratio) return `rgb(${colors[0].r}, ${colors[0].g}, ${colors[0].b})`;
+        return `rgb(${colors[colors.length - 1].r}, ${colors[colors.length - 1].g}, ${colors[colors.length - 1].b})`;
+      }
+      const segmentRatio = (ratio - lowerColor.ratio) / (upperColor.ratio - lowerColor.ratio);
+      const r = Math.round(lowerColor.r + (upperColor.r - lowerColor.r) * segmentRatio);
+      const g = Math.round(lowerColor.g + (upperColor.g - lowerColor.g) * segmentRatio);
+      const b = Math.round(lowerColor.b + (upperColor.b - lowerColor.b) * segmentRatio);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    // Draw colorbar
+    function drawColorbar(minSpeed, maxSpeed) {
+      const canvas = document.getElementById('colorbar-canvas');
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      const gradient = ctx.createLinearGradient(0, 0, width, 0);
+      gradient.addColorStop(0.0, getColor(minSpeed, minSpeed, maxSpeed));
+      gradient.addColorStop(0.33, getColor(minSpeed + (maxSpeed - minSpeed) * 0.33, minSpeed, maxSpeed));
+      gradient.addColorStop(0.66, getColor(minSpeed + (maxSpeed - minSpeed) * 0.66, minSpeed, maxSpeed));
+      gradient.addColorStop(1.0, getColor(maxSpeed, minSpeed, maxSpeed));
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+      const minSpeedEl = document.getElementById('min-speed');
+      const maxSpeedEl = document.getElementById('max-speed');
+      minSpeedEl.textContent = `Min Speed: ${minSpeed.toFixed(2)} knots`;
+      minSpeedEl.style.color = getColor(minSpeed, minSpeed, maxSpeed);
+      maxSpeedEl.textContent = `Max Speed: ${maxSpeed.toFixed(2)} knots`;
+      maxSpeedEl.style.color = getColor(maxSpeed, minSpeed, maxSpeed);
+    }
+
+    // Maintain buoys
+    function maintainBuoys() {
+      buoyMarkers.forEach(marker => {
+        if (!map.hasLayer(marker)) {
+          marker.addTo(map);
+        }
+      });
+    }
+
+    // Toggle map view
+    function toggleView() {
+      isMapView = !isMapView;
+      const mapElement = document.getElementById('map');
+      const toggleBtn = document.getElementById('toggle-view-btn');
+      if (isMapView) {
+        tileLayer.addTo(map);
+        mapElement.classList.remove('black-screen');
+        toggleBtn.textContent = 'Switch to Black Screen View';
+      } else {
+        map.removeLayer(tileLayer);
+        mapElement.classList.add('black-screen');
+        toggleBtn.textContent = 'Switch to Map View';
+      }
+      polylines.forEach(polyline => {
+        if (!map.hasLayer(polyline)) {
+          polyline.addTo(map);
+        }
+      });
+      maintainBuoys();
+    }
+
+    // Zoom to boat path
+    function zoomToBoatPath() {
+      if (currentIndex > 0 && boatData.length > 0) {
+        const validBoatPoints = boatData.slice(0, currentIndex + 1)
+          .filter(d => !isNaN(d.lat) && !isNaN(d.long))
+          .map(d => [d.lat, d.long]);
+        if (validBoatPoints.length > 0) {
+          map.fitBounds(validBoatPoints, { padding: [20, 20] });
+        }
+      }
+    }
+
+    // Plot boat point
+    function plotBoatPoint(data) {
+      boatData.push(data);
+      currentIndex = boatData.length - 1;
+      const speeds = boatData.map(d => d.speed).filter(s => !isNaN(s));
+      const minSpeed = 0.0;
+      const maxSpeed = 50.0;
+
+      if (currentIndex > 0) {
+        const prevPoint = boatData[currentIndex - 1];
+        const currPoint = boatData[currentIndex];
+        if (!isNaN(prevPoint.lat) && !isNaN(prevPoint.long) && 
+            !isNaN(currPoint.lat) && !isNaN(currPoint.long)) {
+          const latlngs = [
+            [prevPoint.lat, prevPoint.long],
+            [currPoint.lat, currPoint.long]
+          ];
+          const color = getColor(prevPoint.speed, minSpeed, maxSpeed);
+          const polyline = L.polyline(latlngs, { color: color, weight: 3 }).addTo(map);
+          polylines.push(polyline);
+        }
+      }
+
+      drawColorbar(minSpeed, maxSpeed);
+
+      if (isTracing && currentIndex > 2) {
+        if (!hasInitialZoom) {
+          zoomToBoatPath();
+          hasInitialZoom = true;
+        } else if (currentIndex % 5 === 0) {
+          zoomToBoatPath();
+        }
+      }
+
+      maintainBuoys();
+      updateDataStatus('active', `Plotting point ${currentIndex + 1}/${boatData.length}`);
+    }
+
+    // Load buoys
+    async function loadBuoys() {
+      try {
+        updateDataStatus('active', 'Loading buoys...');
+        const response = await fetch('http://127.0.0.1:8000/map/buoys');
+        if (!response.ok) {
+          updateDataStatus('error', 'No buoys available');
+          return;
+        }
+        buoyData = await response.json();
+        buoyMarkers.forEach(marker => map.removeLayer(marker));
+        buoyMarkers = [];
+
+        if (buoyData && buoyData.length > 0) {
+          let successfulBuoys = 0;
+          buoyData.forEach((buoy, index) => {
+            if (buoy.lat != null && buoy.lon != null && 
+                !isNaN(buoy.lat) && !isNaN(buoy.lon)) {
+              const lat = Number(buoy.lat);
+              const lon = Number(buoy.lon);
+              const marker = L.marker([lat, lon], { icon: buoyIcon })
+                .addTo(map)
+                .bindPopup(`Buoy ${index + 1}<br>Lat: ${lat}<br>Lon: ${lon}`);
+              buoyMarkers.push(marker);
+              successfulBuoys++;
+            }
+          });
+
+          if (!isTracing && successfulBuoys > 0) {
+            const allLatLngs = [];
+            if (currentIndex > 0 && boatData.length > 0) {
+              const validBoatPoints = boatData.slice(0, currentIndex + 1)
+                .filter(d => !isNaN(d.lat) && !isNaN(d.long))
+                .map(d => [d.lat, d.long]);
+              allLatLngs.push(...validBoatPoints);
+            }
+            const validBuoyPoints = buoyData
+              .filter(buoy => !isNaN(buoy.lat) && !isNaN(buoy.lon))
+              .map(buoy => [Number(buoy.lat), Number(buoy.lon)]);
+            allLatLngs.push(...validBuoyPoints);
+            if (allLatLngs.length > 0) {
+              map.fitBounds(allLatLngs, { padding: [50, 50] });
+            }
+          }
+          updateDataStatus('active', `Loaded ${successfulBuoys}/${buoyData.length} buoys`);
+        } else {
+          updateDataStatus('error', 'No buoy data available');
+        }
+      } catch (error) {
+        console.error('Error loading buoys:', error);
+        updateDataStatus('error', 'Failed to load buoys');
+      }
+    }
+
+    // Submit buoys
+    async function submitBuoys() {
+      const buoySubmitData = {
+        buoy1_lat: Number(document.getElementById('buoy1_lat').value),
+        buoy1_lon: Number(document.getElementById('buoy1_lon').value),
+        buoy2_lat: Number(document.getElementById('buoy2_lat').value),
+        buoy2_lon: Number(document.getElementById('buoy2_lon').value),
+        buoy3_lat: Number(document.getElementById('buoy3_lat').value),
+        buoy3_lon: Number(document.getElementById('buoy3_lon').value),
+      };
+
+      for (const key in buoySubmitData) {
+        if (isNaN(buoySubmitData[key])) {
+          alert('Please enter valid numbers for all buoy coordinates.');
+          return;
+        }
+      }
+
+      try {
+        updateDataStatus('active', 'Submitting buoy data...');
+        const response = await fetch('http://127.0.0.1:8000/map/buoys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buoySubmitData),
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error: ${response.status}`);
+        }
+        setTimeout(async () => {
+          await loadBuoys();
+          if (buoyMarkers.length > 0) {
+            const group = new L.featureGroup(buoyMarkers);
+            map.fitBounds(group.getBounds().pad(0.1));
+            buoyMarkers.forEach((marker, index) => {
+              const pos = marker.getLatLng();
+              const circle = L.circle([pos.lat, pos.lng], {
+                color: 'red',
+                fillColor: '#f03',
+                fillOpacity: 0.3,
+                radius: 100
+              }).addTo(map);
+              setTimeout(() => map.removeLayer(circle), 5000);
+            });
+          }
+        }, 500);
+        updateDataStatus('active', 'Buoys submitted successfully');
+      } catch (error) {
+        console.error('Error submitting buoys:', error);
+        alert('Failed to submit buoy positions');
+        updateDataStatus('error', 'Error submitting buoys');
+      }
+    }
+
+    // Remove buoys
+    function removeBuoys() {
+      buoyMarkers.forEach(marker => map.removeLayer(marker));
+      buoyMarkers = [];
+      buoyData = [];
+      updateDataStatus('active', 'Buoys removed');
+      document.getElementById('buoy1_lat').value = '';
+      document.getElementById('buoy1_lon').value = '';
+      document.getElementById('buoy2_lat').value = '';
+      document.getElementById('buoy2_lon').value = '';
+      document.getElementById('buoy3_lat').value = '';
+      document.getElementById('buoy3_lon').value = '';
+      if (boatData.length > 0 && currentIndex > 0) {
+        zoomToBoatPath();
+      }
+    }
+
+    // Fetch initial data
+    async function fetchInitialData() {
+      try {
+        updateDataStatus('active', 'Fetching initial data...');
+        const response = await fetch('http://127.0.0.1:8000/map/data');
+        if (!response.ok) {
+          throw new Error(`HTTP error: ${response.status}`);
+        }
+        const resultData = await response.json();
+        sensorData = resultData.data;
+        if (resultData.status === 'waiting') {
+          updateDataStatus('waiting', 'Waiting for data from MQTT...');
+          return;
+        }
+        if (sensorData.length > 0) {
+          boatData = sensorData;
+          currentIndex = boatData.length - 1;
+          updateMetricCards(sensorData[sensorData.length - 1]);
+          lastDataTime = moment().tz('Asia/Kolkata').valueOf();
+          updateDataStatus('active', 'Receiving data');
+          isTracing = true;
+          plotBoatPoint(sensorData[sensorData.length - 1]);
+        }
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+        updateDataStatus('error', 'Failed to fetch data');
+      }
+    }
+
+    // Initialize SSE
+    function initializeSSE() {
+      if (sseSource) {
+        sseSource.close();
+      }
+      if (sseRetryCount >= MAX_SSE_RETRIES) {
+        updateConnectionStatus('disconnected', 'Max reconnection attempts reached');
+        console.error('Max SSE reconnection attempts reached');
+        return;
+      }
+      sseSource = new EventSource('http://127.0.0.1:8000/map/stream');
+      
+      sseSource.onopen = function() {
+        isConnected = true;
+        sseRetryCount = 0;
+        updateConnectionStatus('connected', 'Connected to SSE');
+        console.log('SSE connection established');
+      };
+      
+      sseSource.onmessage = function(event) {
+        if (event.data === 'ping') return;
+        try {
+          const parsedData = JSON.parse(event.data);
+          sensorData.push(parsedData);
+          boatData.push(parsedData);
+          updateMetricCards(parsedData);
+          lastDataTime = moment().tz('Asia/Kolkata').valueOf();
+          updateDataStatus('active', 'Receiving SSE data');
+          isTracing = true;
+          plotBoatPoint(parsedData);
+        } catch (error) {
+          console.error('Error parsing SSE data:', error);
+        }
+      };
+      
+      sseSource.onerror = function() {
+        isConnected = false;
+        sseRetryCount++;
+        updateConnectionStatus('disconnected', `SSE connection error (Retry ${sseRetryCount}/${MAX_SSE_RETRIES})`);
+        console.error('SSE connection error');
+        if (sseRetryCount < MAX_SSE_RETRIES) {
+          setTimeout(initializeSSE, 5000);
+        } else {
+          updateConnectionStatus('disconnected', 'Max reconnection attempts reached');
+        }
+      };
+    }
+
+    // Monitor data freshness
+    function startMonitorDataFreshness() {
+      let lastStatus = null;
+      setInterval(() => {
+        if (lastDataTime) {
+          const now = moment().tz('Asia/Kolkata').valueOf();
+          const timeSinceLastData = moment.duration(now - lastDataTime).asSeconds();
+          const isFresh = timeSinceLastData <= 10;
+          const newStatus = isFresh ? 'active' : 'waiting';
+          if (newStatus !== lastStatus) {
+            if (isFresh) {
+              updateDataStatus('active', 'Receiving data');
+            } else {
+              updateDataStatus('waiting', `No recent data for ${Math.floor(timeSinceLastData)} seconds`);
+            }
+            lastStatus = newStatus;
+          }
+        } else if (lastStatus !== 'waiting') {
+          updateDataStatus('waiting', 'No data received');
+          lastStatus = 'waiting';
+        }
+      }, 1000);
+    }
+
+    // Initialize dashboard
+    function initDashboard() {
+      initMap();
+      fetchInitialData();
+      initializeSSE();
+      loadBuoys();
+      startMonitorDataFreshness();
+    }
+
+    document.addEventListener('DOMContentLoaded', initDashboard);
+  </script>
+</body>
+</html>

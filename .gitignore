@@ -1,0 +1,9 @@
+/docker-compose.yml
+/venv/
+__pycache__/
+*.pyc
+.env
+/env/
+*.pem
+*.crt
+*.key

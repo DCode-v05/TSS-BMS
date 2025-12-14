@@ -1,0 +1,1823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-time Monitoring Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.34/moment-timezone-with-data.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-moment/1.0.0/chartjs-adapter-moment.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="header">
+      <h1>Team Sea Sakthi Dashboard <img src="https://flagcdn.com/in.svg" alt="Indian Flag" style="height: 1em; vertical-align: middle;"></h1>
+      <div class="status-indicators">
+        <div class="indicator" id="connectionStatus" role="status" aria-live="polite">
+          <span class="dot"></span>
+          <span id="connectionStatusText">Connecting...</span>
+        </div>
+        <div class="indicator" id="dataStatus" role="status" aria-live="polite">
+          <span class="dot"></span>
+          <span id="statusText">Loading...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-container" role="region" aria-label="Battery metrics chart">
+      <div class="chart-header">
+        <h2>Battery Metrics</h2>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-color current"></span><span>Current</span></div>
+          <div class="legend-item"><span class="legend-color soc"></span><span>SOC</span></div>
+          <div class="legend-item"><span class="legend-color voltage"></span><span>Voltage</span></div>
+          <div class="legend-item"><span class="legend-color power"></span><span>Power</span></div>
+          <div class="legend-item"><span class="legend-color temperature"></span><span>Temperature</span></div>
+          <div class="legend-item"><span class="legend-color pdutemp"></span><span>PDU Temperature</span></div>
+          <div class="legend-item"><span class="legend-color speed"></span><span>Speed</span></div>
+        </div>
+      </div>
+      <canvas id="batteryChart" aria-label="Battery sensor data chart" role="img"></canvas>
+    </div>
+
+    <div class="chart-container" role="region" aria-label="Wind metrics chart">
+      <div class="chart-header">
+        <h2>Wind Metrics</h2>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-color wind-speed"></span><span>Wind Speed</span></div>
+          <div class="legend-item"><span class="legend-color wind-direction"></span><span>Wind Direction</span></div>
+          <div class="legend-item"><span class="legend-color boat-direction"></span><span>Boat Direction</span></div>
+          <div class="legend-item"><span class="legend-color lat"></span><span>Latitude</span></div>
+          <div class="legend-item"><span class="legend-color long"></span><span>Longitude</span></div>
+        </div>
+      </div>
+      <canvas id="windChart" aria-label="Wind sensor data chart" role="img"></canvas>
+    </div>
+
+    <div id="customTooltip" class="custom-tooltip" style="display: none;"></div>
+
+    <div class="metrics-grid">
+      <div class="metric-card" role="region" aria-label="Current metric">
+        <h3>Current</h3>
+        <div class="metric-value" id="currentValue">-- A</div>
+        <div class="metric-trend" id="currentTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="SOC metric">
+        <h3>SOC</h3>
+        <div class="metric-value" id="socValue">--%</div>
+        <div class="metric-trend" id="socTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Speed metric">
+        <h3>Speed</h3>
+        <div class="metric-value" id="speedValue">-- knots</div>
+        <div class="metric-trend" id="speedTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Temperature metric">
+        <h3>Temperature</h3>
+        <div class="metric-value" id="tempValue">--°C</div>
+        <div class="metric-trend" id="tempTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="PDU Temperature metric">
+        <h3>PDU Temperature</h3>
+        <div class="metric-value" id="pduTempValue">--°C</div>
+        <div class="metric-trend" id="pduTempTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Power metric">
+        <h3>Power</h3>
+        <div class="metric-value" id="powerValue">-- W</div>
+        <div class="metric-trend" id="powerTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Voltage metric">
+        <h3>Voltage</h3>
+        <div class="metric-value" id="voltageValue">-- V</div>
+        <div class="metric-trend" id="voltageTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Wind Speed metric">
+        <h3>Wind Speed</h3>
+        <div class="metric-value" id="windSpeedValue">-- knots</div>
+        <div class="metric-trend" id="windSpeedTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Wind Direction metric">
+        <h3>Wind Direction</h3>
+        <div class="metric-value" id="windDirectionValue">--° (--)</div>
+        <div class="metric-trend" id="windDirectionTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Boat Direction metric">
+        <h3>Boat Direction</h3>
+        <div class="metric-value" id="boatDirectionValue">--°</div>
+        <div class="metric-trend" id="boatDirectionTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Wind Type metric">
+        <h3>Wind Type</h3>
+        <div class="metric-value" id="windTypeValue">--</div>
+        <div class="metric-trend" id="windTypeTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Location metric">
+        <h3>Location</h3>
+        <div class="metric-value" id="locationValue">
+          <div>Lat: <span id="latValue">--</span></div>
+          <div>Long: <span id="longValue">--</span></div>
+        </div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Lap Count metric">
+        <h3>Lap Count</h3>
+        <div class="metric-value" id="lapCountValue">--</div>
+        <div class="metric-trend" id="lapCountTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Turn Angle metric">
+        <h3>Turn Angle</h3>
+        <div class="metric-value" id="turnAngleValue">--</div>
+        <div class="metric-trend" id="turnAngleTrend">--</div>
+      </div>
+      <div class="metric-card" role="region" aria-label="Predicted Speed metric">
+        <h3>Predicted Speed</h3>
+        <div class="metric-value" id="predictedSpeedValue">-- knots</div>
+        <div class="metric-trend" id="predictedSpeedTrend">--</div>
+      </div>
+    </div>
+
+    <div class="feedback-section" role="region" aria-label="Race Feedback">
+      <div class="feedback-header">
+        <h2>Race Feedback</h2>
+        <div class="race-type-selector">
+          <button id="enduranceRaceType" class="race-type-btn active" onclick="switchRaceType('endurance')">
+            Endurance (4h)
+          </button>
+          <button id="raceWinRaceType" class="race-type-btn" onclick="switchRaceType('raceWin')">
+            Race Win (30m)
+          </button>
+        </div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-card" role="region" aria-label="Race Timer">
+          <h3>Race Timer</h3>
+          <div class="metric-value">
+            <div class="timer-controls">
+              <div class="timer-inputs">
+                <input type="number" id="raceHours" placeholder="HH" min="0" max="23" value="4">
+                <span>:</span>
+                <input type="number" id="raceMinutes" placeholder="MM" min="0" max="59" value="0">
+                <span>:</span>
+                <input type="number" id="raceSeconds" placeholder="SS" min="0" max="59" value="0">
+              </div>
+              <div class="timer-buttons">
+                <button id="startRace" onclick="startRace()">Start</button>
+                <button id="stopRace" onclick="stopRace()" disabled>Stop</button>
+                <button id="resetRace" onclick="resetRace()">Reset</button>
+              </div>
+            </div>
+            <div class="timer-display">
+              <span id="raceTimerValue">04:00:00</span>
+            </div>
+          </div>
+        </div>
+        <div class="metric-card" role="region" aria-label="Optimal Speed">
+          <h3>Optimal Speed</h3>
+          <div class="metric-value" id="optimalSpeedValue">-- knots</div>
+          <div class="metric-trend" id="optimalSpeedTrend">--</div>
+        </div>
+        <div class="metric-card" role="region" aria-label="Battery Remaining">
+          <h3>Battery Remaining</h3>
+          <div class="metric-value" id="batteryRemainingValue">Battery Remaining: --%</div>
+          <div class="metric-trend" id="batteryRemainingTrend">--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: #1a1a1a;
+      color: #ffffff;
+      overflow-x: hidden;
+    }
+
+    .dashboard {
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #333;
+    }
+
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .status-indicators {
+      display: flex;
+      gap: 20px;
+    }
+
+    .indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: #888;
+      transition: color 0.3s ease;
+    }
+
+    .indicator.connected, .indicator.active {
+      color: #4ade80;
+    }
+
+    .indicator.disconnected, .indicator.error {
+      color: #ef4444;
+    }
+
+    .indicator.waiting {
+      color: #f59e0b;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #888;
+      transition: background-color 0.3s ease;
+    }
+
+    .indicator.connected .dot, .indicator.active .dot {
+      background-color: #4ade80;
+      animation: pulse 2s infinite;
+    }
+
+    .indicator.disconnected .dot, .indicator.error .dot {
+      background-color: #ef4444;
+    }
+
+    .indicator.waiting .dot {
+      background-color: #f59e0b;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    .chart-container {
+      background-color: #2a2a2a;
+      border-radius: 12px;
+      padding: 25px;
+      margin-bottom: 25px;
+      border: 1px solid #333;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      position: relative;
+      height: 520px;
+      width: 100%;
+      max-width: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow-x: auto;
+    }
+
+    .chart-container canvas {
+      height: 450px !important;
+      width: 100% !important;
+      max-width: 100%;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .chart-header h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: #ccc;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+    }
+
+    .legend-color.current { background-color: #22c55e; }
+    .legend-color.soc { background-color: #f59e0b; }
+    .legend-color.speed { background-color: #3b82f6; }
+    .legend-color.temperature { background-color: #f97316; }
+    .legend-color.pdutemp { background-color: #a3e635; }
+    .legend-color.power { background-color: #ec4899; }
+    .legend-color.voltage { background-color: #ef4444; }
+    .legend-color.wind-speed { background-color: #8b5cf6; }
+    .legend-color.wind-direction { background-color: #06b6d4; }
+    .legend-color.boat-direction { background-color: #ffea00; }
+    .legend-color.lat { background-color: #00e676; }
+    .legend-color.long { background-color: #94a3b8; }
+
+    .custom-tooltip {
+      position: absolute;
+      background-color: #2a2a2a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 10px;
+      color: #ffffff;
+      font-size: 0.85rem;
+      pointer-events: none;
+      z-index: 1000;
+      max-width: 300px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 8px 20px;
+      width: 100%;
+    }
+
+    .metric-card {
+      background-color: #2a2a2a;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #333;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .metric-card h3 {
+      font-size: 0.9rem;
+      color: #888;
+      margin-bottom: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .metric-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #ffffff;
+      margin-bottom: 5px;
+    }
+
+    .metric-trend {
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .metric-trend.up {
+      color: #22c55e;
+    }
+
+    .metric-trend.down {
+      color: #ef4444;
+    }
+
+    .metric-trend.stable {
+      color: #888;
+    }
+
+    .metric-trend .drain-increase {
+      color: #ef4444;
+      font-weight: bold;
+    }
+
+    #locationValue {
+      font-size: 1rem;
+    }
+
+    #locationValue div {
+      margin-bottom: 3px;
+    }
+
+    .feedback-section {
+      background-color: #2a2a2a;
+      border-radius: 12px;
+      padding: 25px;
+      margin-bottom: 25px;
+      border: 1px solid #333;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .feedback-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .feedback-header h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #ffffff;
+      margin: 0;
+    }
+
+    .race-type-selector {
+      display: flex;
+      gap: 8px;
+      background-color: #333;
+      border-radius: 8px;
+      padding: 4px;
+    }
+
+    .race-type-btn {
+      padding: 8px 16px;
+      background-color: transparent;
+      border: none;
+      border-radius: 6px;
+      color: #ccc;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+
+    .race-type-btn:hover {
+      background-color: #444;
+      color: #fff;
+    }
+
+    .race-type-btn.active {
+      background-color: #4ade80;
+      color: #000;
+      font-weight: 600;
+    }
+
+    .race-type-btn.active:hover {
+      background-color: #22c55e;
+    }
+
+    .metric-value button {
+      background-color: #4ade80;
+      color: #ffffff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      margin-right: 10px;
+    }
+
+    .metric-value button:hover {
+      background-color: #22c55e;
+    }
+
+    @media (max-width: 1200px) {
+      .chart-container {
+        height: 400px;
+      }
+      .chart-container canvas {
+        height: 340px !important;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .chart-container {
+        height: 320px;
+      }
+      .chart-container canvas {
+        height: 260px !important;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .dashboard {
+        padding: 10px;
+        gap: 16px;
+      }
+      .chart-container {
+        padding-top: 10px;
+        height: 220px;
+      }
+      .chart-container canvas {
+        height: 160px !important;
+      }
+      .metrics-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .chart-header h2 {
+        font-size: 1.1rem;
+      }
+      .chart-container {
+        padding-top: 5px;
+        height: 160px;
+      }
+      .chart-container canvas {
+        height: 110px !important;
+      }
+    }
+
+    .timer-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .timer-inputs {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      justify-content: center;
+    }
+
+    .timer-inputs input {
+      width: 40px;
+      padding: 4px;
+      background-color: #333;
+      border: 1px solid #555;
+      border-radius: 4px;
+      color: #fff;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+
+    .timer-inputs input:focus {
+      outline: none;
+      border-color: #4ade80;
+    }
+
+    .timer-inputs span {
+      color: #ccc;
+      font-weight: bold;
+    }
+
+    .timer-buttons {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .timer-buttons button {
+      padding: 6px 12px;
+      background-color: #4ade80;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background-color 0.3s ease;
+    }
+
+    .timer-buttons button:hover:not(:disabled) {
+      background-color: #22c55e;
+    }
+
+    .timer-buttons button:disabled {
+      background-color: #666;
+      cursor: not-allowed;
+    }
+
+    .timer-buttons button[onclick*="stop"] {
+      background-color: #ef4444;
+    }
+
+    .timer-buttons button[onclick*="stop"]:hover:not(:disabled) {
+      background-color: #dc2626;
+    }
+
+    .timer-buttons button[onclick*="reset"] {
+      background-color: #f59e0b;
+    }
+
+    .timer-buttons button[onclick*="reset"]:hover:not(:disabled) {
+      background-color: #d97706;
+    }
+
+    .timer-display {
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #4ade80;
+    }
+
+    /* Special styling for turn angle instructions */
+    #turnAngleValue {
+      font-size: 1.3rem;
+    }
+
+    #turnAngleValue:contains("Keep Straight") {
+      color: #22c55e; /* Green for optimal */
+    }
+
+    #turnAngleValue:contains("Turn Left") {
+      color: #3b82f6; /* Blue for left turn */
+    }
+
+    #turnAngleValue:contains("Turn Right") {
+      color: #f59e0b; /* Orange for right turn */
+    }
+  </style>
+
+  <script>
+    // Global variables
+    let sensorData = [];
+    let batteryChart = null;
+    let windChart = null;
+    let previousData = null;
+    let lastDataTime = null;
+    let isConnected = false;
+    let isUserPanning = false;
+    let raceStart = null;
+    let racePaused = false;
+    let racePausedTime = 0;
+    let currentRaceType = 'endurance'; // Track current race type
+    let currentSOC = 100;
+    let raceStartSOC = 100;
+    let lastOptimalSpeed = null;
+    let lastBatteryRemaining = null;
+    let lastDrainRate = 0;
+    let customDuration = 14400; // Default 4 hours in seconds
+    let batteryUpdateIntervalId = null;
+    let sseSource = null;
+
+    // Chart configuration for battery data
+    const batteryChartConfig = {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Current',
+            data: [],
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34, 197, 94, 0.3)',
+            tension: 0.1,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 2,
+            yAxisID: 'yCurrent'
+          },
+          {
+            label: 'SOC',
+            data: [],
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.2)',
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 2,
+            yAxisID: 'ySoc'
+          },
+          {
+            label: 'Voltage',
+            data: [],
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 2,
+            yAxisID: 'yVoltage'
+          },
+          {
+            label: 'Power',
+            data: [],
+            borderColor: '#ec4899',
+            backgroundColor: 'rgba(236, 72, 153, 0.1)',
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 2,
+            yAxisID: 'yPower'
+          },
+          {
+            label: 'Temperature',
+            data: [],
+            borderColor: '#f97316',
+            backgroundColor: 'rgba(249, 115, 22, 0.1)',
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 2,
+            yAxisID: 'yTemperature'
+          },
+          {
+            label: 'PDU Temperature',
+            data: [],
+            borderColor: '#a3e635',
+            backgroundColor: 'rgba(163, 230, 53, 0.1)',
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 2,
+            yAxisID: 'yPduTemp'
+          },
+          {
+            label: 'Speed',
+            data: [],
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 2,
+            yAxisID: 'ySpeed'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        backgroundColor: '#1a1a1a',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: true,
+            mode: 'index',
+            intersect: false,
+            external: externalTooltipHandler
+          },
+          zoom: {
+            pan: {
+              enabled: true,
+              mode: 'x',
+              onPanStart: () => { isUserPanning = true; },
+              onPanComplete: () => { setTimeout(() => { isUserPanning = false; }, 500); }
+            },
+            zoom: {
+              wheel: { enabled: true, speed: 0.1 },
+              pinch: { enabled: true },
+              mode: 'x'
+            },
+            limits: { x: { min: 'original', max: 'original' } }
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              unit: 'second',
+              displayFormats: { second: 'HH:mm:ss' },
+              timezone: 'Asia/Kolkata',
+              stepSize: 600
+            },
+            grid: { color: '#333', drawBorder: false },
+            ticks: {
+              color: '#888',
+              maxTicksLimit: 6,
+              autoSkip: true,
+              autoSkipPadding: 20,
+              maxRotation: 0,
+              minRotation: 0,
+              source: 'data'
+            }
+          },
+          yCurrent: {
+            type: 'linear',
+            position: 'left',
+            title: { display: true, text: 'Current (A)', color: '#22c55e' },
+            grid: { color: '#333' },
+            ticks: { color: '#22c55e' },
+            suggestedMin: 0,
+            suggestedMax: 200
+          },
+          ySoc: {
+            type: 'linear',
+            position: 'right',
+            title: { display: true, text: 'SOC (%)', color: '#f59e0b' },
+            grid: { display: false },
+            ticks: { color: '#f59e0b' },
+            suggestedMin: 0,
+            suggestedMax: 100
+          },
+          yVoltage: {
+            type: 'linear',
+            position: 'left',
+            title: { display: true, text: 'Voltage (V)', color: '#ef4444' },
+            grid: { display: false },
+            ticks: { color: '#ef4444' },
+            suggestedMin: 0,
+            suggestedMax: 500
+          },
+          yPower: {
+            type: 'linear',
+            position: 'right',
+            title: { display: true, text: 'Power (W)', color: '#ec4899' },
+            grid: { display: false },
+            ticks: { color: '#ec4899' },
+            suggestedMin: -1000,
+            suggestedMax: 1000
+          },
+          yTemperature: {
+            type: 'linear',
+            position: 'left',
+            title: { display: true, text: 'Temperature (°C)', color: '#f97316' },
+            grid: { display: false },
+            ticks: { color: '#f97316' },
+            suggestedMin: -40,
+            suggestedMax: 100
+          },
+          yPduTemp: {
+            type: 'linear',
+            position: 'right',
+            title: { display: true, text: 'PDU Temperature (°C)', color: '#a3e635' },
+            grid: { display: false },
+            ticks: { color: '#a3e635' },
+            suggestedMin: -40,
+            suggestedMax: 100
+          },
+          ySpeed: {
+            type: 'linear',
+            position: 'left',
+            title: { display: true, text: 'Speed (knots)', color: '#3b82f6' },
+            grid: { display: false },
+            ticks: { color: '#3b82f6' },
+            suggestedMin: 0,
+            suggestedMax: 50
+          }
+        },
+        interaction: {
+          intersect: false,
+          mode: 'index'
+        },
+        animation: false,
+        elements: {
+          line: { borderWidth: 1 },
+          point: { radius: 0 }
+        },
+        parsing: true,
+        normalized: true
+      }
+    };
+
+    // Chart configuration for wind data
+    const windChartConfig = {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Wind Speed',
+            data: [],
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 1,
+            yAxisID: 'yWindSpeed',
+            xAxisID: 'xTime'
+          },
+          {
+            label: 'Wind Direction',
+            data: [],
+            borderColor: '#06b6d4',
+            backgroundColor: 'rgba(6, 182, 212, 0.1)',
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 1,
+            yAxisID: 'yWindDirection',
+            xAxisID: 'xTime'
+          },
+          {
+            label: 'Boat Direction',
+            data: [],
+            borderColor: '#ffea00',
+            backgroundColor: 'rgba(255, 234, 0, 0.1)',
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 1,
+            yAxisID: 'yBoatDirection',
+            xAxisID: 'xTime'
+          },
+          {
+            label: 'Latitude',
+            data: [],
+            borderColor: '#00e676',
+            backgroundColor: 'rgba(0, 230, 118, 0.2)',
+            tension: 0,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 1,
+            yAxisID: 'yLat',
+            xAxisID: 'xTime'
+          },
+          {
+            label: 'Longitude',
+            data: [],
+            borderColor: '#94a3b8',
+            backgroundColor: 'rgba(148, 163, 184, 0.2)',
+            tension: 0,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 1,
+            yAxisID: 'yLong',
+            xAxisID: 'xTime'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        backgroundColor: '#1a1a1a',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: true,
+            mode: 'index',
+            intersect: false,
+            external: externalTooltipHandler
+          },
+          zoom: {
+            pan: {
+              enabled: true,
+              mode: 'x',
+              onPanStart: () => { isUserPanning = true; },
+              onPanComplete: () => { setTimeout(() => { isUserPanning = false; }, 500); }
+            },
+            zoom: {
+              wheel: { enabled: true, speed: 0.1 },
+              pinch: { enabled: true },
+              mode: 'x'
+            },
+            limits: { x: { min: 'original', max: 'original' } }
+          }
+        },
+        scales: {
+          xTime: {
+            type: 'time',
+            time: {
+              unit: 'second',
+              displayFormats: { second: 'HH:mm:ss' },
+              timezone: 'Asia/Kolkata',
+              stepSize: 600
+            },
+            grid: { color: '#333', drawBorder: false },
+            ticks: {
+              color: '#888',
+              maxTicksLimit: 6,
+              autoSkip: true,
+              autoSkipPadding: 20,
+              maxRotation: 0,
+              minRotation: 0,
+              source: 'data'
+            }
+          },
+          yWindSpeed: {
+            type: 'linear',
+            position: 'left',
+            title: { display: true, text: 'Wind Speed (knots)', color: '#8b5cf6' },
+            grid: { color: '#333' },
+            ticks: { color: '#8b5cf6' },
+            suggestedMin: 0,
+            suggestedMax: 50
+          },
+          yWindDirection: {
+            type: 'linear',
+            position: 'right',
+            title: { display: true, text: 'Wind Direction (°)', color: '#06b6d4' },
+            grid: { display: false },
+            ticks: { color: '#06b6d4' },
+            suggestedMin: 0,
+            suggestedMax: 360
+          },
+          yBoatDirection: {
+            type: 'linear',
+            position: 'left',
+            title: { display: true, text: 'Boat Direction (°)', color: '#ffea00' },
+            grid: { display: false },
+            ticks: { color: '#ffea00' },
+            suggestedMin: 0,
+            suggestedMax: 360
+          },
+          yLat: {
+            type: 'linear',
+            position: 'left',
+            title: { display: true, text: 'Latitude', color: '#00e676' },
+            grid: { display: false },
+            ticks: { color: '#00e676' }
+          },
+          yLong: {
+            type: 'linear',
+            position: 'right',
+            title: { display: true, text: 'Longitude', color: '#94a3b8' },
+            grid: { display: false },
+            ticks: { color: '#94a3b8' }
+          }
+        },
+        interaction: {
+          intersect: false,
+          mode: 'index'
+        },
+        animation: false,
+        elements: {
+          line: { borderWidth: 1 },
+          point: { radius: 0 }
+        },
+        parsing: true,
+        normalized: true
+      }
+    };
+
+    // Initialize charts
+    function initCharts() {
+      const batteryCtx = document.getElementById('batteryChart').getContext('2d');
+      const windCtx = document.getElementById('windChart').getContext('2d');
+      batteryChart = new Chart(batteryCtx, batteryChartConfig);
+      windChart = new Chart(windCtx, windChartConfig);
+
+      const now = moment().tz('Asia/Kolkata').toISOString();
+      const dummyData = [{
+        timestamp: now,
+        speed: 0.0,
+        current: 0.0,
+        voltage: 0.0,
+        soc: 0.0,
+        temperature: 0.0,
+        pdutemp: 0.0,
+        power: 0.0,
+        wind_speed: 0.0,
+        wind_direction: 0.0,
+        boat_direction: 0.0,
+        wind_type: 'Crosswind',
+        lat: 0.0,
+        long: 0.0,
+        lap_count: 0,
+        ai_predicted_speed: 0.0
+      }];
+      updateCharts(dummyData);
+    }
+
+    // Tooltip handler
+    function externalTooltipHandler(context) {
+      const { chart, tooltip } = context;
+      if (!tooltip || tooltip.opacity === 0) {
+        if (sensorData.length > 0) {
+          updateMetricCards(sensorData[sensorData.length - 1]);
+        }
+        return;
+      }
+      const index = tooltip.dataPoints[0].dataIndex;
+      let data = window.filteredData && window.filteredData[index] ? window.filteredData[index] : sensorData[index];
+      if (data) {
+        updateMetricCards(data, true);
+      }
+    }
+
+    // Cardinal direction
+    function getCardinalDirection(degrees) {
+      const directions = [
+        'North', 'NNE', 'NE', 'ENE', 'East', 'ESE', 'SE', 'SSE',
+        'South', 'SSW', 'SW', 'WSW', 'West', 'WNW', 'NW', 'NNW'
+      ];
+      const index = Math.round(degrees / 22.5) % 16;
+      return directions[index] || 'North';
+    }
+
+    // Fetch AI-predicted speed
+    async function fetchAIPredictedSpeed(data, remainingTime, raceType) {
+      try {
+        const response = await fetch('http://127.0.0.1:8000/battery/predict_speed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            soc: parseFloat(data.soc) || 0,
+            remaining_time: remainingTime,
+            wind_type: data.wind_type || 'Crosswind',
+            lap_count: parseInt(data.lap_count) || 0,
+            speed: parseFloat(data.speed) || 0,
+            wind_speed: parseFloat(data.wind_speed) || 0,
+            wind_direction: parseFloat(data.wind_direction) || 0,
+            boat_direction: parseFloat(data.boat_direction) || 0
+          })
+        });
+        if (!response.ok) {
+          console.error('Failed to fetch AI-predicted speed:', response.status);
+          return null;
+        }
+        const result = await response.json();
+        return parseFloat(result.predicted_speed);
+      } catch (error) {
+        console.error('Error fetching AI-predicted speed:', error);
+        return null;
+      }
+    }
+
+    // Optimal speed calculation
+    async function calculateOptimalSpeed(soc, remainingTime, windType, raceType, data) {
+      const totalTime = raceType === 'endurance' ? 14400 : 1800;
+      const baseSpeed = raceType === 'endurance' ? 10 : 15;
+      const socFactor = soc / 100;
+      const windFactor = windType === 'Tailwind' ? 1.2 : windType === 'Headwind' ? 0.8 : 1.0;
+      const timeProgress = 1 - (remainingTime / totalTime);
+      let speedFactor = 1.0;
+
+      if (soc < 30) {
+        speedFactor = 0.7;
+      } else if (timeProgress > 0.5 && soc > 50) {
+        speedFactor = 1.3;
+      }
+
+      const ruleBasedSpeed = baseSpeed * socFactor * windFactor * speedFactor;
+
+      // Use AI-predicted speed from data (already calculated by backend)
+      const aiPredictedSpeed = parseFloat(data.ai_predicted_speed) || 0;
+      let finalSpeed;
+      if (aiPredictedSpeed !== null && aiPredictedSpeed > 0) {
+        // Weighted average: 70% AI, 30% rule-based
+        finalSpeed = (0.7 * aiPredictedSpeed + 0.3 * ruleBasedSpeed);
+      } else {
+        finalSpeed = ruleBasedSpeed; // Fallback to rule-based if AI fails
+      }
+
+      return Math.max(0, finalSpeed).toFixed(1);
+    }
+
+    // Battery drain rate
+    function calculateBatteryDrainRate(optimalSpeed) {
+      const BASE_RATE = 0.1; // Define BASE_RATE
+      const SPEED_FACTOR = 0.01; // Define SPEED_FACTOR
+      return BASE_RATE + (optimalSpeed * SPEED_FACTOR);
+    }
+
+    // Update charts
+    function updateCharts(data) {
+      if (!batteryChart || !windChart || !data) {
+        return;
+      }
+
+      const dataArray = Array.isArray(data) ? data : [data];
+      const validData = dataArray.filter(row => {
+        const t = moment(row.timestamp, moment.ISO_8601, true);
+        return t.isValid();
+      });
+      if (validData.length === 0) {
+        updateDataStatus('waiting', 'No valid data received. Waiting for new data from MQTT.');
+        return;
+      }
+
+      sensorData = sensorData.concat(validData).slice(-1000);
+      window.filteredData = sensorData;
+
+      const WINDOW_MS = 30 * 60 * 1000;
+      const now = moment().tz('Asia/Kolkata').valueOf();
+      let minTimestamp, maxTimestamp;
+
+      if (!isUserPanning) {
+        maxTimestamp = now;
+        minTimestamp = now - WINDOW_MS;
+      } else {
+        minTimestamp = batteryChart.options.scales.x.min || (now - WINDOW_MS);
+        maxTimestamp = batteryChart.options.scales.x.max || now;
+      }
+
+      const visibleData = sensorData.filter(row => {
+        const t = moment(row.timestamp).valueOf();
+        return t >= minTimestamp && t <= maxTimestamp;
+      });
+
+      const labels = visibleData.map(row => moment(row.timestamp).toDate());
+      batteryChart.data.labels = labels;
+      windChart.data.labels = labels;
+      batteryChart.data.datasets.forEach(dataset => dataset.data = []);
+      windChart.data.datasets.forEach(dataset => dataset.data = []);
+
+      visibleData.forEach(row => {
+        batteryChart.data.datasets[0].data.push(parseFloat(row.current) || 0);
+        batteryChart.data.datasets[1].data.push(parseFloat(row.soc) || 0);
+        batteryChart.data.datasets[2].data.push(parseFloat(row.voltage) || 0);
+        batteryChart.data.datasets[3].data.push(parseFloat(row.power) || 0);
+        batteryChart.data.datasets[4].data.push(parseFloat(row.temperature) || 0);
+        batteryChart.data.datasets[5].data.push(parseFloat(row.pdutemp) || 0);
+        batteryChart.data.datasets[6].data.push(parseFloat(row.speed) || 0);
+        windChart.data.datasets[0].data.push(parseFloat(row.wind_speed) || 0);
+        windChart.data.datasets[1].data.push(parseFloat(row.wind_direction) || 0);
+        windChart.data.datasets[2].data.push(parseFloat(row.boat_direction) || 0);
+        windChart.data.datasets[3].data.push(parseFloat(row.lat) || 0);
+        windChart.data.datasets[4].data.push(parseFloat(row.long) || 0);
+      });
+
+      batteryChart.options.scales.x.min = minTimestamp;
+      batteryChart.options.scales.x.max = maxTimestamp;
+      windChart.options.scales.xTime.min = minTimestamp;
+      windChart.options.scales.xTime.max = maxTimestamp;
+
+      if (!batteryChart.options.plugins.zoom.limits.x.min) {
+        const earliest = sensorData.length > 0 ? moment(sensorData[0].timestamp).valueOf() : now - WINDOW_MS;
+        batteryChart.options.plugins.zoom.limits.x.min = earliest;
+        batteryChart.options.plugins.zoom.limits.x.max = now + (5 * 60 * 1000);
+        windChart.options.plugins.zoom.limits.x.min = earliest;
+        windChart.options.plugins.zoom.limits.x.max = now + (5 * 60 * 1000);
+      }
+
+      batteryChart.update('none');
+      windChart.update('none');
+    }
+
+    // Update connection status
+    function updateConnectionStatus(status, message) {
+      const indicator = document.getElementById('connectionStatus');
+      const statusText = document.getElementById('connectionStatusText');
+      indicator.className = `indicator ${status}`;
+      statusText.textContent = message;
+    }
+
+    // Update data status
+    function updateDataStatus(status, message) {
+      const indicator = document.getElementById('dataStatus');
+      const statusText = document.getElementById('statusText');
+      indicator.className = `indicator ${status}`;
+      statusText.textContent = message;
+    }
+
+    // Update metric cards
+    function updateMetricCards(data, isHover = false) {
+      if (!data) return;
+
+      // Update current SOC from real sensor data
+      currentSOC = parseFloat(data.soc) || 0;
+
+      document.getElementById('currentValue').textContent = `${(parseFloat(data.current) || 0).toFixed(1)} A`;
+      document.getElementById('socValue').textContent = `${currentSOC.toFixed(1)}%`;
+      document.getElementById('speedValue').textContent = `${(parseFloat(data.speed) || 0).toFixed(1)} knots`;
+      document.getElementById('tempValue').textContent = `${(parseFloat(data.temperature) || 0).toFixed(1)}°C`;
+      document.getElementById('pduTempValue').textContent = `${(parseFloat(data.pdutemp) || 0).toFixed(1)}°C`;
+      document.getElementById('powerValue').textContent = `${(parseFloat(data.power) || 0).toFixed(2)} W`;
+      document.getElementById('voltageValue').textContent = `${(parseFloat(data.voltage) || 0).toFixed(1)} V`;
+      document.getElementById('windSpeedValue').textContent = `${(parseFloat(data.wind_speed) || 0).toFixed(1)} knots`;
+      document.getElementById('windDirectionValue').textContent = `${(parseFloat(data.wind_direction) || 0).toFixed(0)}° (${getCardinalDirection(data.wind_direction)})`;
+      document.getElementById('boatDirectionValue').textContent = `${(parseFloat(data.boat_direction) || 0).toFixed(0)}°`;
+      document.getElementById('windTypeValue').textContent = data.wind_type || 'Crosswind';
+      document.getElementById('latValue').textContent = `${(parseFloat(data.lat) || 0).toFixed(6)}`;
+      document.getElementById('longValue').textContent = `${(parseFloat(data.long) || 0).toFixed(6)}`;
+      document.getElementById('lapCountValue').textContent = `${(parseInt(data.lap_count) || 0)}`;
+
+      // Calculate and display turn angle optimization
+      const boatHeading = parseFloat(data.boat_direction) || 0;
+      const windDirection = parseFloat(data.wind_direction) || 0;
+      const windType = data.wind_type || 'Crosswind';
+      const turnInstruction = optimizeBoatHeading(boatHeading, windDirection, windType);
+      document.getElementById('turnAngleValue').textContent = turnInstruction;
+
+      // Update race timer battery display with real SOC if race is active
+      if (raceStart) {
+        document.getElementById('batteryRemainingValue').textContent = `Battery Remaining: ${currentSOC.toFixed(1)}%`;
+        updateBatteryTrend('batteryRemainingTrend', currentSOC, lastBatteryRemaining);
+        lastBatteryRemaining = currentSOC;
+      }
+
+      if (!isHover && previousData) {
+        updateTrend('currentTrend', data.current, previousData.current);
+        updateTrend('socTrend', data.soc, previousData.soc);
+        updateTrend('speedTrend', data.speed, previousData.speed);
+        updateTrend('tempTrend', data.temperature, previousData.temperature);
+        updateTrend('pduTempTrend', data.pdutemp, previousData.pdutemp);
+        updateTrend('powerTrend', data.power, previousData.power);
+        updateTrend('voltageTrend', data.voltage, previousData.voltage);
+        updateTrend('windSpeedTrend', data.wind_speed, previousData.wind_speed);
+        updateTrend('windDirectionTrend', data.wind_direction, previousData.wind_direction);
+        updateTrend('boatDirectionTrend', data.boat_direction, previousData.boat_direction);
+        updateTrend('windTypeTrend', data.wind_type === previousData.wind_type ? 0 : 1, 0, true);
+        updateTrend('lapCountTrend', data.lap_count, previousData.lap_count);
+        
+        // Update turn angle trend (compare current instruction with previous)
+        const prevBoatHeading = parseFloat(previousData.boat_direction) || 0;
+        const prevWindDirection = parseFloat(previousData.wind_direction) || 0;
+        const prevWindType = previousData.wind_type || 'Crosswind';
+        const prevTurnInstruction = optimizeBoatHeading(prevBoatHeading, prevWindDirection, prevWindType);
+        updateTurnAngleTrend('turnAngleTrend', turnInstruction, prevTurnInstruction);
+        
+      } else if (isHover) {
+        ['currentTrend', 'socTrend', 'speedTrend', 'tempTrend', 'pduTempTrend',
+         'powerTrend', 'voltageTrend', 'windSpeedTrend', 'windDirectionTrend',
+         'boatDirectionTrend', 'windTypeTrend', 'lapCountTrend', 'turnAngleTrend'].forEach(id => {
+          const element = document.getElementById(id);
+          element.textContent = 'Hover';
+          element.className = 'metric-trend stable';
+        });
+      }
+
+      if (!isHover) {
+        updateFeedbackSystems(data);
+        previousData = data;
+      }
+
+      // Update predicted speed display
+      const predictedSpeed = parseFloat(data.ai_predicted_speed) || 0;
+      document.getElementById('predictedSpeedValue').textContent = `${predictedSpeed.toFixed(1)} knots`;
+      if (!isHover && previousData) {
+        updateTrend('predictedSpeedTrend', predictedSpeed, previousData.ai_predicted_speed);
+      }
+    }
+
+    // Update trend
+    function updateTrend(elementId, currentValue, previousValue, isString = false) {
+      const element = document.getElementById(elementId);
+      if (previousValue !== undefined) {
+        if (isString) {
+          const delta = currentValue === previousValue ? 0 : 1;
+          if (delta === 0) {
+            element.textContent = 'Stable';
+            element.className = 'metric-trend stable';
+          } else {
+            element.textContent = 'Changed';
+            element.className = 'metric-trend up';
+          }
+        } else {
+          const current = parseFloat(currentValue) || 0;
+          const previous = parseFloat(previousValue) || 0;
+          const delta = current - previous;
+          if (Math.abs(delta) < 0.1) {
+            element.textContent = 'Stable';
+            element.className = 'metric-trend stable';
+          } else if (delta > 0) {
+            element.textContent = `↑ +${delta.toFixed(1)}`;
+            element.className = 'metric-trend up';
+          } else {
+            element.textContent = `↓ ${Math.abs(delta).toFixed(1)}`;
+            element.className = 'metric-trend down';
+          }
+        }
+      } else {
+        element.textContent = '--';
+        element.className = 'metric-trend stable';
+      }
+    }
+
+    // Update feedback systems
+    async function updateFeedbackSystems(data) {
+      const now = moment().tz('Asia/Kolkata').valueOf();
+      const soc = parseFloat(data.soc) || 0;
+      const windType = data.wind_type || 'Crosswind';
+
+      if (raceStart) {
+        const remainingTime = Math.max(0, (raceStart + customDuration * 1000 - now) / 1000);
+        const optimalSpeed = await calculateOptimalSpeed(soc, remainingTime, windType, currentRaceType, data);
+        document.getElementById('optimalSpeedValue').textContent = `${optimalSpeed} knots`;
+        updateFeedbackTrend('optimalSpeedTrend', optimalSpeed, lastOptimalSpeed);
+        lastOptimalSpeed = optimalSpeed;
+      }
+    }
+
+    // Update feedback trend
+    function updateFeedbackTrend(elementId, currentValue, previousValue) {
+      const element = document.getElementById(elementId);
+      if (previousValue !== undefined && previousValue !== null) {
+        const current = parseFloat(currentValue) || 0;
+        const previous = parseFloat(previousValue) || 0;
+        const delta = current - previous;
+        if (Math.abs(delta) < 0.1) {
+          element.textContent = 'Stable';
+          element.className = 'metric-trend stable';
+        } else if (delta > 0) {
+          element.textContent = `↑ +${delta.toFixed(1)}`;
+          element.className = 'metric-trend up';
+        } else {
+          element.textContent = `↓ ${Math.abs(delta).toFixed(1)}`;
+          element.className = 'metric-trend down';
+        }
+      } else {
+        element.textContent = '--';
+        element.className = 'metric-trend stable';
+      }
+    }
+
+    // Battery update timer
+    function startBatteryUpdateTimer() {
+      if (batteryUpdateIntervalId) {
+        clearInterval(batteryUpdateIntervalId);
+      }
+      batteryUpdateIntervalId = setInterval(() => {
+        const now = moment().tz('Asia/Kolkata').valueOf();
+
+        if (raceStart) {
+          const elapsed = (now - raceStart) / 1000;
+          const remaining = Math.max(0, customDuration - elapsed);
+          document.getElementById('raceTimerValue').textContent = formatTime(remaining);
+          if (remaining === 0) {
+            raceStart = null;
+            racePaused = false;
+            document.getElementById('startRace').disabled = false;
+            document.getElementById('startRace').textContent = 'Start';
+            document.getElementById('stopRace').disabled = true;
+            document.getElementById('raceHours').disabled = false;
+            document.getElementById('raceMinutes').disabled = false;
+            document.getElementById('raceSeconds').disabled = false;
+            document.getElementById('enduranceRaceType').disabled = false;
+            document.getElementById('raceWinRaceType').disabled = false;
+            alert(`${currentRaceType === 'endurance' ? 'Endurance' : 'Race Win'} race completed!`);
+          }
+        }
+
+        if (!raceStart && batteryUpdateIntervalId) {
+          clearInterval(batteryUpdateIntervalId);
+          batteryUpdateIntervalId = null;
+        }
+      }, 1000);
+    }
+
+    // Update battery trend
+    function updateBatteryTrend(elementId, currentValue, previousValue) {
+      const element = document.getElementById(elementId);
+      if (previousValue !== undefined && previousValue !== null) {
+        const current = parseFloat(currentValue) || 0;
+        const previous = parseFloat(previousValue) || 0;
+        const delta = current - previous;
+        if (Math.abs(delta) < 0.1) {
+          element.textContent = 'Stable';
+          element.className = 'metric-trend stable';
+        } else if (delta > 0) {
+          element.textContent = `↑ +${delta.toFixed(1)}%`;
+          element.className = 'metric-trend up';
+        } else {
+          element.textContent = `↓ ${Math.abs(delta).toFixed(1)}%`;
+          element.className = 'metric-trend down';
+        }
+      } else {
+        element.textContent = '--';
+        element.className = 'metric-trend stable';
+      }
+    }
+
+    // Format time
+    function formatTime(seconds) {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Start race
+    function startRace() {
+      const now = moment().tz('Asia/Kolkata').valueOf();
+      
+      // Get custom duration from inputs
+      const hours = parseInt(document.getElementById('raceHours').value) || 0;
+      const minutes = parseInt(document.getElementById('raceMinutes').value) || 0;
+      const seconds = parseInt(document.getElementById('raceSeconds').value) || 0;
+      customDuration = (hours * 3600) + (minutes * 60) + seconds;
+      
+      if (customDuration <= 0) {
+        alert('Please set a valid timer duration');
+        return;
+      }
+      
+      if (racePaused) {
+        // Resume from pause
+        raceStart = now - racePausedTime;
+        racePaused = false;
+      } else {
+        // Fresh start - record starting SOC
+        raceStart = now;
+        raceStartSOC = currentSOC;
+        lastOptimalSpeed = null;
+        lastBatteryRemaining = currentSOC;
+        lastDrainRate = 0;
+        racePausedTime = 0;
+        // Update display immediately with current SOC
+        document.getElementById('batteryRemainingValue').textContent = `Battery Remaining: ${currentSOC.toFixed(1)}%`;
+      }
+      
+      document.getElementById('startRace').disabled = true;
+      document.getElementById('stopRace').disabled = false;
+      document.getElementById('raceHours').disabled = true;
+      document.getElementById('raceMinutes').disabled = true;
+      document.getElementById('raceSeconds').disabled = true;
+      
+      // Disable race type switching during active race
+      document.getElementById('enduranceRaceType').disabled = true;
+      document.getElementById('raceWinRaceType').disabled = true;
+      
+      startBatteryUpdateTimer();
+    }
+
+    // Stop race
+    function stopRace() {
+      if (raceStart) {
+        const now = moment().tz('Asia/Kolkata').valueOf();
+        racePausedTime = now - raceStart;
+        racePaused = true;
+        raceStart = null;
+        
+        document.getElementById('startRace').disabled = false;
+        document.getElementById('startRace').textContent = 'Resume';
+        document.getElementById('stopRace').disabled = true;
+      }
+    }
+
+    // Reset race
+    function resetRace() {
+      raceStart = null;
+      racePaused = false;
+      racePausedTime = 0;
+      raceStartSOC = currentSOC;
+      lastOptimalSpeed = null;
+      lastBatteryRemaining = null;
+      lastDrainRate = 0;
+      
+      // Reset timer display to input values
+      const hours = parseInt(document.getElementById('raceHours').value) || 0;
+      const minutes = parseInt(document.getElementById('raceMinutes').value) || 0;
+      const seconds = parseInt(document.getElementById('raceSeconds').value) || 0;
+      const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+      document.getElementById('raceTimerValue').textContent = formatTime(totalSeconds);
+      
+      // Reset battery display to current real SOC
+      document.getElementById('batteryRemainingValue').textContent = `Battery Remaining: ${currentSOC.toFixed(1)}%`;
+      document.getElementById('optimalSpeedValue').textContent = '-- knots';
+      
+      // Reset button states
+      document.getElementById('startRace').disabled = false;
+      document.getElementById('startRace').textContent = 'Start';
+      document.getElementById('stopRace').disabled = true;
+      document.getElementById('raceHours').disabled = false;
+      document.getElementById('raceMinutes').disabled = false;
+      document.getElementById('raceSeconds').disabled = false;
+      
+      // Re-enable race type switching
+      document.getElementById('enduranceRaceType').disabled = false;
+      document.getElementById('raceWinRaceType').disabled = false;
+    }
+
+    // Fetch initial data
+    async function fetchData() {
+      try {
+        updateDataStatus('active', 'Fetching data...');
+        const response = await fetch('http://127.0.0.1:8000/battery/data');
+        if (!response.ok) {
+          throw new Error(`HTTP error: ${response.status}`);
+        }
+        const result = await response.json();
+        sensorData = result.data;
+
+        if (result.status === 'waiting') {
+          updateDataStatus('waiting', 'Waiting for data from MQTT...');
+          return;
+        }
+
+        updateCharts(sensorData);
+        if (sensorData.length > 0) {
+          updateMetricCards(sensorData[sensorData.length - 1]);
+          lastDataTime = moment().tz('Asia/Kolkata');
+          updateDataStatus('active', 'Receiving data');
+        }
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+        updateDataStatus('error', 'Failed to fetch data');
+      }
+    }
+
+    // Initialize SSE connection
+    function initSSE() {
+      if (sseSource) {
+        sseSource.close();
+      }
+      sseSource = new EventSource('http://127.0.0.1:8000/battery/stream');
+      
+      sseSource.onopen = () => {
+        isConnected = true;
+        updateConnectionStatus('connected', 'Connected to server');
+        console.log('SSE connection established');
+      };
+
+      sseSource.onmessage = (event) => {
+        if (event.data === 'ping') {
+          return;
+        }
+        try {
+          const data = JSON.parse(event.data);
+          updateCharts([data]);
+          updateMetricCards(data);
+          lastDataTime = moment().tz('Asia/Kolkata');
+          updateDataStatus('active', 'Receiving data');
+        } catch (error) {
+          console.error('Error parsing SSE data:', error);
+        }
+      };
+
+      sseSource.onerror = () => {
+        isConnected = false;
+        updateConnectionStatus('disconnected', 'Disconnected from server');
+        console.error('SSE connection error');
+        setTimeout(initSSE, 5000); // Attempt to reconnect after 5 seconds
+      };
+    }
+
+    // Monitor data freshness
+    function monitorDataFreshness() {
+      setInterval(() => {
+        if (lastDataTime) {
+          const now = moment().tz('Asia/Kolkata');
+          const secondsSinceLastData = now.diff(lastDataTime, 'seconds');
+          if (secondsSinceLastData > 5) {
+            updateDataStatus('waiting', 'No recent data');
+          }
+        }
+      }, 1000);
+    }
+
+    // Initialize dashboard
+    function initDashboard() {
+      initCharts();
+      fetchData();
+      initSSE();
+      monitorDataFreshness();
+    }
+
+    // Start the dashboard
+    document.addEventListener('DOMContentLoaded', initDashboard);
+
+    // Add input change handlers to update timer display
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize with current SOC values instead of 100%
+      document.getElementById('batteryRemainingValue').textContent = `Battery Remaining: ${currentSOC.toFixed(1)}%`;
+      
+      // Add event listeners for input changes
+      ['raceHours', 'raceMinutes', 'raceSeconds'].forEach(id => {
+        document.getElementById(id).addEventListener('input', function() {
+          if (!raceStart && !racePaused) {
+            const hours = parseInt(document.getElementById('raceHours').value) || 0;
+            const minutes = parseInt(document.getElementById('raceMinutes').value) || 0;
+            const seconds = parseInt(document.getElementById('raceSeconds').value) || 0;
+            const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+            document.getElementById('raceTimerValue').textContent = formatTime(totalSeconds);
+          }
+        });
+      });
+    });
+
+    // Add new function to switch race types
+    function switchRaceType(raceType) {
+      // Don't allow switching during active race
+      if (raceStart && !racePaused) {
+        alert('Cannot switch race type during active race. Please stop or reset first.');
+        return;
+      }
+      
+      currentRaceType = raceType;
+      
+      // Update button states
+      document.getElementById('enduranceRaceType').classList.remove('active');
+      document.getElementById('raceWinRaceType').classList.remove('active');
+      document.getElementById(raceType + 'RaceType').classList.add('active');
+      
+      // Update default timer values
+      if (raceType === 'endurance') {
+        document.getElementById('raceHours').value = 4;
+        document.getElementById('raceMinutes').value = 0;
+        document.getElementById('raceSeconds').value = 0;
+        customDuration = 14400; // 4 hours
+      } else {
+        document.getElementById('raceHours').value = 0;
+        document.getElementById('raceMinutes').value = 30;
+        document.getElementById('raceSeconds').value = 0;
+        customDuration = 1800; // 30 minutes
+      }
+      
+      // Update timer display
+      document.getElementById('raceTimerValue').textContent = formatTime(customDuration);
+      
+      // Reset race state if not active
+      if (!raceStart) {
+        resetRace();
+      }
+    }
+
+    // Optimize boat heading based on wind conditions
+    function optimizeBoatHeading(boatHeading, windDirection, windType) {
+      let optimalHeading;
+      
+      // Calculate optimal heading based on wind type
+      switch(windType) {
+        case 'Tailwind':
+          // For tailwind, boat should be aligned with wind direction (wind at back)
+          // Optimal heading is same as wind direction
+          optimalHeading = windDirection;
+          break;
+          
+        case 'Headwind':
+          // For headwind, boat should tack at 45-degree angle to wind
+          // Choose the closer tacking angle (either +45° or -45° from wind direction)
+          const tackLeft = (windDirection + 45) % 360;
+          const tackRight = (windDirection - 45 + 360) % 360;
+          
+          // Calculate which tack is closer to current heading
+          const distanceToLeft = Math.min(
+            Math.abs(boatHeading - tackLeft),
+            360 - Math.abs(boatHeading - tackLeft)
+          );
+          const distanceToRight = Math.min(
+            Math.abs(boatHeading - tackRight),
+            360 - Math.abs(boatHeading - tackRight)
+          );
+          
+          optimalHeading = distanceToLeft <= distanceToRight ? tackLeft : tackRight;
+          break;
+          
+        case 'Crosswind':
+          // For crosswind, optimize for beam reach (90° to wind)
+          // Choose the beam reach direction that's closer to current heading
+          const beamLeft = (windDirection + 90) % 360;
+          const beamRight = (windDirection - 90 + 360) % 360;
+          
+          const distanceToBeamLeft = Math.min(
+            Math.abs(boatHeading - beamLeft),
+            360 - Math.abs(boatHeading - beamLeft)
+          );
+          const distanceToBeamRight = Math.min(
+            Math.abs(boatHeading - beamRight),
+            360 - Math.abs(boatHeading - beamRight)
+          );
+          
+          optimalHeading = distanceToBeamLeft <= distanceToBeamRight ? beamLeft : beamRight;
+          break;
+          
+        default:
+          optimalHeading = boatHeading; // No change if wind type is unknown
+      }
+      
+      // Calculate turn angle needed
+      let turnAngle = optimalHeading - boatHeading;
+      
+      // Normalize turn angle to -180 to +180 range
+      if (turnAngle > 180) {
+        turnAngle -= 360;
+      } else if (turnAngle < -180) {
+        turnAngle += 360;
+      }
+      
+      // Generate turn instruction
+      if (Math.abs(turnAngle) < 2) {
+        return "Keep Straight";
+      } else if (turnAngle > 0) {
+        return `Turn Right ${Math.abs(turnAngle).toFixed(0)}°`;
+      } else {
+        return `Turn Left ${Math.abs(turnAngle).toFixed(0)}°`;
+      }
+    }
+
+    // Update turn angle trend
+    function updateTurnAngleTrend(elementId, currentInstruction, previousInstruction) {
+      const element = document.getElementById(elementId);
+      if (previousInstruction !== undefined && previousInstruction !== null) {
+        if (currentInstruction === previousInstruction) {
+          element.textContent = 'Stable';
+          element.className = 'metric-trend stable';
+        } else if (currentInstruction === 'Keep Straight') {
+          element.textContent = 'No Change';
+          element.className = 'metric-trend up';
+        } else if (previousInstruction === 'Keep Straight') {
+          element.textContent = 'Adjusting';
+          element.className = 'metric-trend down';
+        } else {
+          element.textContent = 'Changed';
+          element.className = 'metric-trend up';
+        }
+      } else {
+        element.textContent = '--';
+        element.className = 'metric-trend stable';
+      }
+    }
+  </script>
+</body>
+</html>
